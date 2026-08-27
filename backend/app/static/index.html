@@ -414,13 +414,19 @@
     .banner-BLOCK { background: var(--block-bg); border-color: var(--block-border); color: var(--block-color); }
     .banner-BLOCK .decision-icon { background: rgba(239, 68, 68, 0.25); color: #EF4444; }
 
-    /* Risk Score Gauges */
     .score-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(5, 1fr);
       gap: 0.75rem;
       margin-bottom: 1.5rem;
     }
+
+    @media (max-width: 768px) {
+      .score-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
 
     .score-box {
       background: rgba(10, 15, 26, 0.6);
@@ -703,11 +709,17 @@
               <div class="score-status" id="status-safety">-</div>
             </div>
             <div class="score-box">
+              <div class="score-label">Bias / Fairness</div>
+              <div class="score-value" id="score-bias">-</div>
+              <div class="score-status" id="status-bias">-</div>
+            </div>
+            <div class="score-box">
               <div class="score-label">Cost/Latency</div>
               <div class="score-value" id="score-cost">-</div>
               <div class="score-status" id="status-cost">-</div>
             </div>
           </div>
+
 
           <!-- Delivered Answer Output -->
           <div class="form-group">
@@ -772,12 +784,12 @@
                 <th>Use Case</th>
                 <th>Decision</th>
                 <th>Risk Score</th>
-                <th>Grounding</th>
-                <th>PII</th>
-                <th>Safety</th>
-                <th>Latency (ms)</th>
+                <th>Overhead (ms)</th>
+                <th>Total Time (ms)</th>
+                <th>Fired Rules</th>
               </tr>
             </thead>
+
             <tbody id="audit-table-body">
               <tr><td colspan="9" style="text-align: center; color: var(--text-dim);">No audit records logged yet. Run a prompt in the sandbox or click a demo scenario!</td></tr>
             </tbody>
@@ -899,26 +911,36 @@
 
       const icons = { 'ALLOW': '✓', 'REDACT': '✂', 'FLAG': '⚠', 'BLOCK': '🛑' };
       document.getElementById('decision-icon').innerText = icons[data.decision] || '?';
-      document.getElementById('decision-title').innerText = `DECISION: ${data.decision}`;
+      document.getElementById('decision-title').innerText = `DECISION: ${data.decision}${data.requires_human_review ? ' (Human Review Required)' : ''}`;
       
-      const reason = data.risk && data.risk.notes && data.risk.notes.length > 0
+      const reason = data.reason || (data.risk && data.risk.notes && data.risk.notes.length > 0
         ? data.risk.notes.join(' | ')
-        : `Overall Risk Score: ${data.risk ? data.risk.overall_score.toFixed(2) : 0}`;
+        : `Overall Risk Score: ${data.risk ? data.risk.overall_score.toFixed(2) : 0}`);
       document.getElementById('decision-reason').innerText = reason;
+
+      const signals = data.risk && data.risk.signals ? data.risk.signals : {};
+      const grounding = signals.grounding;
+      const pii = signals.pii;
+      const safety = signals.safety;
+      const bias = signals.bias;
+      const cost = signals.cost;
 
       // Risk scores
       if (data.risk && data.risk.component_scores) {
-        document.getElementById('score-grounding').innerText = data.risk.component_scores.grounding.toFixed(2);
-        document.getElementById('status-grounding').innerText = data.grounding ? data.grounding.grounding_status : 'N/A';
+        document.getElementById('score-grounding').innerText = (data.risk.component_scores.grounding || 0).toFixed(2);
+        document.getElementById('status-grounding').innerText = grounding ? grounding.grounding_status : 'N/A';
         
-        document.getElementById('score-pii').innerText = data.risk.component_scores.pii.toFixed(2);
-        document.getElementById('status-pii').innerText = data.pii ? data.pii.status : 'N/A';
+        document.getElementById('score-pii').innerText = (data.risk.component_scores.pii || 0).toFixed(2);
+        document.getElementById('status-pii').innerText = pii ? pii.status : 'N/A';
         
-        document.getElementById('score-safety').innerText = data.risk.component_scores.safety.toFixed(2);
-        document.getElementById('status-safety').innerText = data.safety ? data.safety.status : 'N/A';
+        document.getElementById('score-safety').innerText = (data.risk.component_scores.safety || 0).toFixed(2);
+        document.getElementById('status-safety').innerText = safety ? safety.status : 'N/A';
+
+        document.getElementById('score-bias').innerText = (data.risk.component_scores.bias || 0).toFixed(2);
+        document.getElementById('status-bias').innerText = bias ? bias.status : 'N/A';
         
-        document.getElementById('score-cost').innerText = data.risk.component_scores.cost.toFixed(2);
-        document.getElementById('status-cost').innerText = data.cost ? `${data.cost.token_count} tok` : 'N/A';
+        document.getElementById('score-cost').innerText = (data.risk.component_scores.cost || 0).toFixed(2);
+        document.getElementById('status-cost').innerText = cost ? (cost.total_tokens !== null && cost.total_tokens !== undefined ? `${cost.total_tokens} tok` : 'N/A') : 'N/A';
       }
 
       // Delivered output
@@ -929,17 +951,17 @@
       let html = '';
 
       // Grounding signal
-      if (data.grounding) {
+      if (grounding) {
         html += `
           <div class="signal-card">
             <div class="signal-header">
-              <span>🧠 Grounding Verification (Graph RAG)</span>
-              <span class="scenario-badge badge-${data.grounding.status === 'pass' ? 'allow' : 'block'}">${data.grounding.grounding_status}</span>
+              <span>🧠 1. Grounding Verification (Graph RAG)</span>
+              <span class="scenario-badge badge-${grounding.status === 'pass' ? 'allow' : (grounding.grounding_status === 'contradicted' ? 'block' : 'flag')}">${grounding.grounding_status}</span>
             </div>
             <div class="signal-body">
-              <p>${data.grounding.explanation || ''}</p>
-              ${data.grounding.claims && data.grounding.claims.length > 0 ? 
-                data.grounding.claims.map(c => `
+              <p>${grounding.explanation || ''}</p>
+              ${grounding.claims && grounding.claims.length > 0 ? 
+                grounding.claims.map(c => `
                   <div style="margin-top: 0.4rem; padding-left: 0.5rem; border-left: 2px solid var(--accent-primary);">
                     <strong>Claim:</strong> "${c.text || c.subject}" → <em>${c.status}</em>
                     <br><span style="font-size: 0.75rem; color: var(--text-dim);">${c.explanation || ''}</span>
@@ -951,34 +973,54 @@
       }
 
       // PII signal
-      if (data.pii) {
+      if (pii) {
         html += `
           <div class="signal-card">
             <div class="signal-header">
-              <span>🔒 PII & Data Privacy Protection</span>
-              <span class="scenario-badge badge-${data.pii.status === 'pass' ? 'allow' : 'redact'}">${data.pii.status}</span>
+              <span>🔒 2. Privacy & PII Protection</span>
+              <span class="scenario-badge badge-${pii.status === 'pass' ? 'allow' : 'redact'}">${pii.status}</span>
             </div>
             <div class="signal-body">
-              <p>${data.pii.explanation || 'PII scanner evaluated.'}</p>
-              ${data.pii.matches && data.pii.matches.length > 0 ? 
-                data.pii.matches.map(m => `<span class="evidence-tag">Detected: ${m.kind} (${m.label})</span>`).join('') : '<span style="color: #34D399; font-size: 0.8rem;">✓ No sensitive PII detected.</span>'}
+              <p>${pii.explanation || 'PII scanner evaluated.'}</p>
+              ${pii.matches && pii.matches.length > 0 ? 
+                pii.matches.map(m => `<span class="evidence-tag">Detected: ${m.kind} (${m.preview})</span>`).join('') : '<span style="color: #34D399; font-size: 0.8rem;">✓ No sensitive PII detected.</span>'}
             </div>
           </div>
         `;
       }
 
       // Safety signal
-      if (data.safety) {
+      if (safety) {
         html += `
           <div class="signal-card">
             <div class="signal-header">
-              <span>🛡️ Safety & Policy Enforcement</span>
-              <span class="scenario-badge badge-${data.safety.status === 'pass' ? 'allow' : 'block'}">${data.safety.status}</span>
+              <span>🛡️ 3. Safety & Policy Enforcement</span>
+              <span class="scenario-badge badge-${safety.status === 'pass' ? 'allow' : 'block'}">${safety.status}</span>
             </div>
             <div class="signal-body">
-              <p>${data.safety.explanation || ''}</p>
-              ${data.safety.violations && data.safety.violations.length > 0 ? 
-                data.safety.violations.map(v => `<div style="color: #F87171; margin-top: 0.3rem;">⚠️ Violation: ${v.rule_id || v.category} — ${v.reason || ''}</div>`).join('') : '<span style="color: #34D399; font-size: 0.8rem;">✓ Passed all safety rules.</span>'}
+              <p>${safety.explanation || ''}</p>
+              ${safety.violations && safety.violations.length > 0 ? 
+                safety.violations.map(v => `<div style="color: #F87171; margin-top: 0.3rem;">⚠️ Violation: [${v.policy_id}] ${v.category} (${v.severity}) — ${v.reason}</div>`).join('') : '<span style="color: #34D399; font-size: 0.8rem;">✓ Passed all safety rules.</span>'}
+            </div>
+          </div>
+        `;
+      }
+
+      // Bias signal
+      if (bias) {
+        const isPass = bias.status === 'pass';
+        html += `
+          <div class="signal-card">
+            <div class="signal-header">
+              <span>⚖️ 4. Bias & Fairness Governance</span>
+              <span class="scenario-badge badge-${isPass ? 'allow' : 'flag'}">${bias.status}</span>
+            </div>
+            <div class="signal-body">
+              <p>${bias.explanation || 'Fairness evaluation completed.'}</p>
+              ${bias.groups_implicated && bias.groups_implicated.length > 0 ? 
+                `<div style="margin-top: 0.4rem;"><strong>Protected Dimensions Implicated:</strong> ${bias.groups_implicated.map(g => `<span class="evidence-tag" style="background: rgba(245, 158, 11, 0.15); color: #FBBF24;">${g}</span>`).join('')}</div>` : ''}
+              ${bias.findings && bias.findings.length > 0 ? 
+                bias.findings.map(f => `<div style="color: #F87171; margin-top: 0.3rem;">⚠️ Finding: [${f.policy_id}] ${f.category} (${f.severity}) — ${f.reason}</div>`).join('') : '<span style="color: #34D399; font-size: 0.8rem;">✓ No discriminatory bias patterns detected.</span>'}
             </div>
           </div>
         `;
@@ -989,11 +1031,13 @@
         html += `
           <div class="signal-card">
             <div class="signal-header">
-              <span>⏱️ ControlPlane Telemetry & Overhead</span>
-              <span style="font-family: monospace; font-size: 0.8rem; color: var(--accent-cyan);">Overhead: ${data.telemetry.overhead_ms ? data.telemetry.overhead_ms.toFixed(2) : 0} ms</span>
+              <span>⏱️ 5. Cost & Overhead Telemetry</span>
+              <span style="font-family: monospace; font-size: 0.8rem; color: var(--accent-cyan);">Overhead: ${data.telemetry.controlplane_overhead_ms ? data.telemetry.controlplane_overhead_ms.toFixed(2) : 0} ms | Model: ${data.telemetry.llm_latency_ms ? data.telemetry.llm_latency_ms.toFixed(1) : 0} ms</span>
             </div>
             <div class="signal-body">
-              <p>Deep Path Triggered: <strong>${data.telemetry.took_deep_path ? 'Yes' : 'No (Fast Path)'}</strong></p>
+              <p>Path Taken: <strong>${data.telemetry.path_taken.toUpperCase()} PATH</strong> | Total Time: <strong>${data.telemetry.total_ms ? data.telemetry.total_ms.toFixed(1) : 0} ms</strong></p>
+              ${data.telemetry.deep_path_reasons && data.telemetry.deep_path_reasons.length > 0 ?
+                `<div style="margin-top: 0.3rem; font-size: 0.75rem; color: var(--text-dim);">Deep path triggers: ${data.telemetry.deep_path_reasons.join(', ')}</div>` : ''}
             </div>
           </div>
         `;
@@ -1001,6 +1045,7 @@
 
       document.getElementById('signals-detail').innerHTML = html;
     }
+
 
     // Load Metrics
     async function loadMetrics() {
@@ -1030,13 +1075,14 @@
         const tbody = document.getElementById('audit-table-body');
         
         if (!data.items || data.items.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-dim);">No audit records logged yet. Run an evaluation!</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-dim);">No audit records logged yet. Run an evaluation!</td></tr>';
           return;
         }
 
         tbody.innerHTML = data.items.map(item => {
           const badgeClass = `badge-${item.decision.toLowerCase()}`;
           const dateStr = item.timestamp ? new Date(item.timestamp).toLocaleTimeString() : '-';
+          const rulesStr = item.fired_rule_ids && item.fired_rule_ids.length > 0 ? item.fired_rule_ids.join(', ') : 'None';
           return `
             <tr>
               <td style="color: var(--text-dim); font-size: 0.8rem;">${dateStr}</td>
@@ -1044,13 +1090,13 @@
               <td>${item.use_case}</td>
               <td><span class="scenario-badge ${badgeClass}">${item.decision}</span></td>
               <td style="font-family: monospace;">${item.overall_risk_score.toFixed(2)}</td>
-              <td>${item.grounding_status}</td>
-              <td>${item.pii_status}</td>
-              <td>${item.safety_status}</td>
-              <td style="font-family: monospace;">${item.total_latency_ms.toFixed(1)} ms</td>
+              <td style="font-family: monospace;">${item.controlplane_overhead_ms ? item.controlplane_overhead_ms.toFixed(1) : 0} ms</td>
+              <td style="font-family: monospace;">${item.total_ms ? item.total_ms.toFixed(1) : 0} ms</td>
+              <td style="font-size: 0.75rem; color: var(--accent-cyan);">${rulesStr}</td>
             </tr>
           `;
         }).join('');
+
       } catch (err) {
         console.error('Failed to load audits', err);
       }
