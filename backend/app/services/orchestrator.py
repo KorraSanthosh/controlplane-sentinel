@@ -52,6 +52,7 @@ from app.schemas.audit import AuditRecord
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.schemas.decision import Decision, DecisionResult
 from app.schemas.signals import (
+    BiasSignal,
     CostSignal,
     GroundingSignal,
     GroundingStatus,
@@ -191,6 +192,7 @@ class Orchestrator:
             grounding=grounding_signal,
             pii=pii_signal,
             safety=safety_signal,
+            bias=self._bias_placeholder("Fairness analysis is not yet wired into the pipeline."),
             cost=cost_signal,
         )
         with timer.stage("risk_scoring"):
@@ -375,6 +377,7 @@ class Orchestrator:
                 grounding=self._grounding_placeholder("Deferred to triage."),
                 pii=pii_signal,
                 safety=safety_signal,
+                bias=self._bias_placeholder("Deferred to triage."),
                 cost=cost_signal,
             ),
             profile.weights,
@@ -589,6 +592,16 @@ class Orchestrator:
             explanation=why,
             graph_backend=self.grounding.repo.backend,
         )
+
+    def _bias_placeholder(self, why: str) -> BiasSignal:
+        """A SKIPPED bias signal.
+
+        SKIPPED rather than PASS on purpose: the fairness dimension exists in the contract
+        before the detector behind it does, and a signal that never ran must not read as one
+        that found nothing (FR-11). SKIPPED keeps it out of the weighted denominator, so the
+        overall score stays the honest aggregate of what was actually measured.
+        """
+        return BiasSignal(status=SignalStatus.SKIPPED, explanation=why)
 
 
 __all__ = [

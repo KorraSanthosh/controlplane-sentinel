@@ -312,3 +312,147 @@ P2:
 - feedback learning loop
 - multi-model routing
 - advanced enterprise connectors
+
+## 18. Version Control Discipline (Mandatory)
+
+Repository: `origin` -> `https://github.com/KorraSanthosh/controlplane-sentinel.git`
+Working branch: `main`, tracking `origin/main`.
+
+**Rule: after every successful code change or safe point, commit and push to `main`.**
+Permission for `git add` / `git commit` / `git push origin main` in this repository is granted in
+advance. Do not ask before each one. Do not batch a day of work into a single commit.
+
+### What counts as a safe point
+
+All four must hold:
+
+1. the change is complete — no half-wired module, no import that does not resolve;
+2. the backend test suite passes **and the output was actually observed** (see §19);
+3. no secret, `.env`, virtualenv, or cache file is staged;
+4. every staged file can be explained by the commit message.
+
+If the tree is knowingly incomplete and a checkpoint is still needed, commit it as
+`wip(<area>): ...` and state in the body exactly what is not yet wired. Prefer finishing the
+slice over checkpointing it.
+
+### Commit message format
+
+```
+<area>: <imperative summary, <= 72 chars>
+
+<why this change exists — the reasoning the diff cannot show>
+<what is deliberately left undone, if anything>
+<which existing tests changed and why, if any>
+```
+
+Areas: `signals`, `scoring`, `policy`, `orchestrator`, `grounding`, `pii`, `safety`, `bias`,
+`repair`, `audit`, `api`, `demo`, `tests`, `docs`, `dashboard`, `chore`.
+
+Good: `bias: add BiasSignal and wire fairness into RiskSignals`
+Avoid: messages that describe a whole work session rather than one change ("update code",
+"prototype done"). They cannot be reviewed and cannot be reverted cleanly.
+
+### Hard limits
+
+- One logical change per commit. Small and reversible beats large and tidy (§13.12).
+- Run `git status --short` before staging. Stage deliberately; do not `git add -A` blindly.
+- Never commit API keys, `.env`, `backend/venv/`, `.pytest_cache/`, `.DS_Store`. `.gitignore`
+  already covers these — that is a safety net, not a substitute for looking.
+- Never force-push, never rewrite pushed history, never `git reset --hard` a pushed commit.
+- If a push is rejected, fetch and rebase or merge. Do not `--force` your way past it.
+
+### Why this matters here
+
+Chat history is not stored in this repository and cannot be relied on across sessions. If every
+safe point is committed and pushed, `git log` becomes the project's actual memory. Session
+transcripts are not a backup; commits are.
+
+## 19. Verification Gate
+
+`pytest` is the **only** configured quality gate. `backend/pyproject.toml` defines pytest
+settings and nothing else — there is no ruff and no mypy configuration in this repository. Do not
+report that a linter or type checker ran.
+
+```
+cd backend && ./venv/bin/python -m pytest -q
+```
+
+**Known environment constraint.** The Bash safety classifier in this environment intermittently
+refuses to execute `pytest` and `python -c` while still permitting short `git` / `grep` / `ls`
+commands. When that happens:
+
+- do not guess the result;
+- do not mark the step done;
+- ask the user to run it in-session so the output lands in the conversation:
+  `! cd backend && ./venv/bin/python -m pytest -q`
+
+§13.14 with teeth: **an unrun test suite is not a passing test suite.** If the suite was not
+observed to pass, say so in those words. Such a change is not a safe point under §18 — either
+get the suite run, or label the commit body `unverified: test suite not executed`.
+
+**Open environment issue (unverified):** `backend/requirements.txt` declares Python 3.12+, but
+`backend/venv` is Python 3.9. Pydantic models across the codebase annotate fields as `X | None`,
+which Pydantic resolves at runtime and which 3.9 cannot evaluate. If the suite fails on import,
+rebuild the virtualenv on Python 3.12 — do not rewrite annotations across the codebase to
+accommodate an old interpreter.
+
+## 20. Environment and Run Commands
+
+- Install: `cd backend && ./venv/bin/python -m pip install -r requirements.txt`
+- Run the API: `cd backend && ./venv/bin/python -m uvicorn app.main:app --reload`
+- Dashboard: served by the same app at `/` and `/dashboard` from `backend/app/static/index.html`.
+  Extend that file; do not start a parallel frontend without reason (§7, reuse over rewrite).
+- Configuration is environment variables only; the template is `.env.example`. Never inline a
+  key, not even in a test or a demo fixture.
+- Policy YAMLs load eagerly at startup, so a malformed profile aborts boot by design. If the
+  server stops starting after a policy edit, read the loader's error before changing code.
+
+## 21. Adding a Risk Check Is a Cross-Cutting Change
+
+`policy/loader.py` rejects unknown check names at load time, so a new detector cannot be dropped
+in one file at a time. These move together or startup and tests fail:
+
+1. `schemas/signals.py` — signal model, `RiskSignals` field, `as_dict()`, `__all__`
+2. `services/<check>/service.py` — rule layer inline, optional LLM probe on the deep path;
+   model it on `services/safety/service.py`
+3. `services/risk/scoring.py` — `DEFAULT_WEIGHTS`
+4. `services/policy/loader.py` — `CHECK_NAMES`; also `NON_PROFILE_FILES` if the check adds a
+   non-profile YAML, otherwise it is parsed as an extra policy profile and boot fails
+5. `services/policy/conditions.py` — `FIELDS` entries, so rules can reference the new signal
+6. all three profiles in `policies/` — `weights` (must sum to 1.0), `enabled_checks`,
+   `on_unavailable`, and rules
+7. `container.py` construction and `orchestrator.py` fast path, placeholder, and action
+8. `tests/factories.py` factory plus a dedicated `tests/test_<check>.py`
+
+Two rules that follow from this:
+
+- Adding a check changes the weighted denominator, so existing score assertions legitimately
+  move. Update them deliberately and state in the commit body that the change is arithmetic,
+  not a regression.
+- A detector that did not run reports `SKIPPED` or `UNAVAILABLE`, never `PASS`. A check that
+  never ran must not read as a check that found nothing.
+
+## 22. Never Reference a File That Does Not Exist
+
+Already present in this repository and to be fixed, not repeated: `scripts/run_demo.py` and
+`backend/tests/test_scenarios.py` are referenced as real from `data/demo/scenarios.yaml`,
+`backend/app/api/v1/demo.py`, `backend/app/demo/scenarios.py`, `backend/app/container.py`,
+`backend/tests/test_orchestrator.py`, and `backend/requirements.txt`. A top-level `README.md` is
+referenced from `backend/app/main.py`. None of these files exist.
+
+Rule: create the file in the same change that references it, or do not reference it. Confirm a
+path exists before writing it into a docstring, comment, or YAML. A phantom reference is worse
+than no reference — it asserts coverage that no test provides, which is exactly the failure
+§13.14 exists to prevent.
+
+## 23. Recovering Context in a New Session
+
+There is no `.claude/logs/` directory and no chat history in the repository. Read, in order:
+
+1. `CLAUDE.md`, `PROJECT_CONTEXT.md`, `SYSTEM_REQUIREMENTS.md`
+2. `git log --oneline` — what has actually shipped
+3. `git status --short` and `git diff` — what was in flight when the last session ended
+
+Uncommitted work in `git diff` is the most reliable record of unfinished work, which is another
+reason to keep §18 tight: the smaller the diff at any moment, the less context a new session has
+to reconstruct.

@@ -7,6 +7,7 @@ decision tests need to call them repeatedly with different arguments inside one 
 from __future__ import annotations
 
 from app.schemas.signals import (
+    BiasSignal,
     CostSignal,
     GroundingSignal,
     GroundingStatus,
@@ -98,6 +99,33 @@ def safety_signal(
     )
 
 
+def bias_signal(
+    *,
+    status: SignalStatus = SignalStatus.PASS,
+    score: float = 0.0,
+    severity: Severity = Severity.NONE,
+    categories: tuple[str, ...] = (),
+    groups: tuple[str, ...] = (),
+    probe_used: bool = False,
+    error: str | None = None,
+) -> BiasSignal:
+    findings = [
+        PolicyViolation(
+            policy_id=f"bias_{cat}", category=cat, severity=severity, reason="test finding"
+        )
+        for cat in categories
+    ]
+    return BiasSignal(
+        status=status,
+        score=score,
+        severity=severity,
+        findings=findings,
+        groups_implicated=list(groups),
+        probe_used=probe_used,
+        error=error,
+    )
+
+
 def cost_signal(
     *,
     status: SignalStatus = SignalStatus.PASS,
@@ -127,6 +155,7 @@ def assessment(
     grounding: GroundingSignal | None = None,
     pii: PIISignal | None = None,
     safety: SafetySignal | None = None,
+    bias: BiasSignal | None = None,
     cost: CostSignal | None = None,
     weights: dict[str, float] | None = None,
 ) -> RiskAssessment:
@@ -135,6 +164,7 @@ def assessment(
         grounding=grounding or grounding_signal(),
         pii=pii or pii_signal(),
         safety=safety or safety_signal(),
+        bias=bias or bias_signal(),
         cost=cost or cost_signal(),
     )
     return _scorer.score(signals, weights)
@@ -142,6 +172,7 @@ def assessment(
 
 __all__ = [
     "assessment",
+    "bias_signal",
     "cost_signal",
     "grounding_signal",
     "pii_signal",

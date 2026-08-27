@@ -544,7 +544,7 @@ async def test_a_disabled_check_is_skipped_not_unavailable(
     orch = pipeline_for(container, llm=_ScriptedProvider(PII_ONLY), policies=off)
     response, _ = await orch.process(chat_request("what is my email on file?"))
 
-    assert sorted(response.risk.skipped_checks) == ["cost", "grounding", "pii", "safety"]
+    assert sorted(response.risk.skipped_checks) == ["bias", "cost", "grounding", "pii", "safety"]
     assert response.risk.unavailable_checks == []
     assert response.risk.overall_score == 0.0
     # A profile that checks nothing catches nothing. The point is that the emptiness is stated.

@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 
 from app.schemas.signals import (
+    BiasSignal,
     CostSignal,
     GroundingSignal,
     GroundingStatus,
@@ -29,6 +30,7 @@ def signals(
     grounding: tuple[SignalStatus, float] = (SignalStatus.PASS, 0.0),
     pii: tuple[SignalStatus, float] = (SignalStatus.PASS, 0.0),
     safety: tuple[SignalStatus, float] = (SignalStatus.PASS, 0.0),
+    bias: tuple[SignalStatus, float] = (SignalStatus.PASS, 0.0),
     cost: tuple[SignalStatus, float] = (SignalStatus.PASS, 0.0),
 ) -> RiskSignals:
     return RiskSignals(
@@ -39,6 +41,7 @@ def signals(
         ),
         pii=PIISignal(status=pii[0], score=pii[1]),
         safety=SafetySignal(status=safety[0], score=safety[1]),
+        bias=BiasSignal(status=bias[0], score=bias[1]),
         cost=CostSignal(status=cost[0], score=cost[1]),
     )
 
@@ -117,7 +120,7 @@ def test_component_scores_are_recorded_even_when_excluded(scorer: RiskScorer) ->
         signals(grounding=(SignalStatus.UNAVAILABLE, 0.0), safety=(SignalStatus.FAIL, 0.8)),
         WEIGHTS,
     )
-    assert set(result.component_scores) == {"grounding", "pii", "safety", "cost"}
+    assert set(result.component_scores) == {"grounding", "pii", "safety", "bias", "cost"}
     assert result.weights == WEIGHTS
 
 

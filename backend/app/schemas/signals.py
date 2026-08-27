@@ -119,6 +119,11 @@ class GroundingSignal(BaseSignal):
     #: the system's main known false-negative channel and is documented as such.
     claims_unverifiable: int = 0
     graph_backend: str = "unknown"  # "neo4j" | "memory" | "unavailable"
+    #: True when at least one contradicted claim carries refuting evidence with a concrete
+    #: object value — i.e. the graph does not merely disagree, it supplies the correct value.
+    #: This is what separates a response that can be *repaired* from one that can only be
+    #: withheld, and it is a policy-visible field (``grounding.repairable``) for that reason.
+    repairable: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -177,6 +182,30 @@ class SafetySignal(BaseSignal):
 
 
 # ---------------------------------------------------------------------------
+# Bias / fairness
+# ---------------------------------------------------------------------------
+class BiasSignal(BaseSignal):
+    """Fairness risk: does the response treat people differently by group?
+
+    Reuses :class:`PolicyViolation` for findings rather than defining a near-identical model,
+    so ``policy_id`` / ``category`` / ``severity`` mean the same thing here as in safety and
+    the audit trail stays uniform.
+
+    ``groups_implicated`` records *which* protected attribute a finding turned on (age, gender,
+    ethnicity, a postcode used as an income proxy). That is the part a reviewer needs, and a
+    single aggregate score cannot carry it.
+    """
+
+    name: Literal["bias"] = "bias"
+    findings: list[PolicyViolation] = Field(default_factory=list)
+    groups_implicated: list[str] = Field(default_factory=list)
+    #: True when the deep-path LLM probe ran. The rule layer stays authoritative for status,
+    #: exactly as with safety.
+    probe_used: bool = False
+    probe_verdict: str | None = None
+
+
+# ---------------------------------------------------------------------------
 # Cost / latency
 # ---------------------------------------------------------------------------
 class CostSignal(BaseSignal):
@@ -199,6 +228,7 @@ class RiskSignals(BaseModel):
     grounding: GroundingSignal
     pii: PIISignal
     safety: SafetySignal
+    bias: BiasSignal
     cost: CostSignal
 
     def as_dict(self) -> dict[str, BaseSignal]:
@@ -206,6 +236,7 @@ class RiskSignals(BaseModel):
             "grounding": self.grounding,
             "pii": self.pii,
             "safety": self.safety,
+            "bias": self.bias,
             "cost": self.cost,
         }
 
@@ -263,6 +294,7 @@ class Telemetry(BaseModel):
 
 __all__ = [
     "BaseSignal",
+    "BiasSignal",
     "Claim",
     "CostSignal",
     "Evidence",
