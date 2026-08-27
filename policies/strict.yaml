@@ -30,15 +30,19 @@ enabled_checks:
   grounding: true
   pii: true
   safety: true
+  bias: true
   cost: true
 
-# Grounding and safety carry more weight here; cost is nearly irrelevant when the alternative
-# is an unverified claim reaching a customer.
+# Grounding, safety and bias carry high weight here; cost is nearly irrelevant when the alternative
+# is an unverified or discriminatory claim reaching a customer.
 weights:
   grounding: 0.45
   safety: 0.35
   pii: 0.15
+  bias: 0.00
   cost: 0.05
+
+
 
 budgets:
   default:
@@ -72,7 +76,9 @@ on_unavailable:
   grounding: BLOCK
   pii: BLOCK
   safety: BLOCK
+  bias: BLOCK
   cost: FLAG
+
 
 strategy: most_restrictive
 

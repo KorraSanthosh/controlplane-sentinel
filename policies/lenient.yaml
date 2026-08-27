@@ -31,13 +31,17 @@ enabled_checks:
   grounding: true
   pii: true
   safety: true
+  bias: true
   cost: true
 
 weights:
   grounding: 0.30
   safety: 0.35
   pii: 0.25
+  bias: 0.00
   cost: 0.10
+
+
 
 budgets:
   default:
@@ -72,7 +76,9 @@ on_unavailable:
   grounding: ALLOW
   pii: ALLOW
   safety: FLAG
+  bias: ALLOW
   cost: ALLOW
+
 
 strategy: most_restrictive
 

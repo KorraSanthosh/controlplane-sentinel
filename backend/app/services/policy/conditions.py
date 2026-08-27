@@ -108,6 +108,16 @@ FIELDS: dict[str, FieldSpec] = {
     "safety.categories": FieldSpec(
         lambda a: sorted({v.category for v in a.signals.safety.violations}), STR_LIST
     ),
+    # -- bias --------------------------------------------------------------
+    "bias.status": FieldSpec(lambda a: a.signals.bias.status, SIGNAL_STATUS),
+    "bias.severity": FieldSpec(lambda a: a.signals.bias.severity, SEVERITY),
+    "bias.score": FieldSpec(lambda a: a.signals.bias.score, NUMBER),
+    "bias.probe_used": FieldSpec(lambda a: a.signals.bias.probe_used, BOOL),
+    "bias.finding_count": FieldSpec(lambda a: len(a.signals.bias.findings), NUMBER),
+    "bias.groups": FieldSpec(lambda a: sorted(a.signals.bias.groups_implicated), STR_LIST),
+    "bias.categories": FieldSpec(
+        lambda a: sorted({f.category for f in a.signals.bias.findings}), STR_LIST
+    ),
     # -- cost --------------------------------------------------------------
     "cost.status": FieldSpec(lambda a: a.signals.cost.status, SIGNAL_STATUS),
     "cost.score": FieldSpec(lambda a: a.signals.cost.score, NUMBER),

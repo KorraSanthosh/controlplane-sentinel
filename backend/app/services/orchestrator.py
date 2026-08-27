@@ -66,6 +66,7 @@ from app.schemas.signals import (
     Telemetry,
 )
 from app.services.audit.service import AuditService
+from app.services.bias.service import BiasService
 from app.services.cost.service import CostService
 from app.services.grounding.claims import ExtractionResult
 from app.services.grounding.service import GroundingService
@@ -96,6 +97,7 @@ class FastResult:
 
     pii: PIISignal
     safety: SafetySignal
+    bias: BiasSignal
     cost: CostSignal
     extraction: ExtractionResult | None
     prescan_error: str | None
@@ -132,6 +134,7 @@ class Orchestrator:
         grounding: GroundingService,
         pii: PIIService,
         safety: SafetyService,
+        bias: BiasService,
         cost: CostService,
         scorer: RiskScorer,
         decision_engine: DecisionEngine,
@@ -144,6 +147,7 @@ class Orchestrator:
         self.grounding = grounding
         self.pii = pii
         self.safety = safety
+        self.bias = bias
         self.cost = cost
         self.scorer = scorer
         self.decision_engine = decision_engine
@@ -173,12 +177,17 @@ class Orchestrator:
 
         # -- 2. fast path --------------------------------------------------
         fast = await self._fast_path(original, request, profile, result, timer)
-        pii_signal, safety_signal, cost_signal = fast.pii, fast.safety, fast.cost
+        pii_signal, safety_signal, bias_signal, cost_signal = (
+            fast.pii,
+            fast.safety,
+            fast.bias,
+            fast.cost,
+        )
 
         # -- 3. triage -----------------------------------------------------
         with timer.stage("triage"):
             fast_assessment = self._fast_assessment(
-                profile, pii_signal, safety_signal, cost_signal
+                profile, pii_signal, safety_signal, bias_signal, cost_signal
             )
             plan = self._triage(profile, fast_assessment, fast, safety_signal)
 
@@ -192,11 +201,12 @@ class Orchestrator:
             grounding=grounding_signal,
             pii=pii_signal,
             safety=safety_signal,
-            bias=self._bias_placeholder("Fairness analysis is not yet wired into the pipeline."),
+            bias=bias_signal,
             cost=cost_signal,
         )
         with timer.stage("risk_scoring"):
             assessment = self.scorer.score(signals, profile.weights)
+
 
         # -- 6. decide -----------------------------------------------------
         with timer.stage("decision"):
@@ -262,9 +272,10 @@ class Orchestrator:
         budget = profile.budget_for(request.use_case)
 
         with timer.stage("fast_path"):
-            pii_signal, safety_signal, cost_signal, prescan = await asyncio.gather(
+            pii_signal, safety_signal, bias_signal, cost_signal, prescan = await asyncio.gather(
                 self._run_pii(text, profile),
                 self._run_safety_rules(text, profile),
+                self._run_bias(text, profile),
                 self._run_cost(result, budget.max_total_tokens, budget.max_latency_ms, profile),
                 self._run_prescan(text, profile),
             )
@@ -273,6 +284,7 @@ class Orchestrator:
         return FastResult(
             pii=pii_signal,
             safety=safety_signal,
+            bias=bias_signal,
             cost=cost_signal,
             extraction=extraction,
             prescan_error=prescan_error,
@@ -319,6 +331,26 @@ class Orchestrator:
                 error=_failure_detail(exc, "safety"),
             )
 
+    async def _run_bias(self, text: str, profile: PolicyProfile) -> BiasSignal:
+        if not profile.is_enabled("bias"):
+            return BiasSignal(
+                status=SignalStatus.SKIPPED,
+                explanation="Bias checking is disabled in this policy profile.",
+            )
+        try:
+            return self.bias.check(text)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Bias evaluation failed")
+            return BiasSignal(
+                status=SignalStatus.UNAVAILABLE,
+                severity=Severity.MEDIUM,
+                explanation=(
+                    "Bias evaluation could not be run, so fairness could not be verified. "
+                    "Reported as unavailable, not as a pass."
+                ),
+                error=_failure_detail(exc, "bias"),
+            )
+
     async def _run_cost(
         self,
         result: LLMResult,
@@ -363,25 +395,21 @@ class Orchestrator:
         profile: PolicyProfile,
         pii_signal: PIISignal,
         safety_signal: SafetySignal,
+        bias_signal: BiasSignal,
         cost_signal: CostSignal,
     ) -> RiskAssessment:
-        """Risk from the fast signals alone, with grounding marked SKIPPED.
-
-        Reuses :class:`RiskScorer` rather than summing weights inline, so the renormalisation
-        rule (a signal that did not score is out of the denominator) is defined in exactly one
-        place. Duplicating it here would let triage act on a systematically different number
-        from the one the policy engine later sees.
-        """
+        """Risk from the fast signals alone, with grounding marked SKIPPED."""
         return self.scorer.score(
             RiskSignals(
                 grounding=self._grounding_placeholder("Deferred to triage."),
                 pii=pii_signal,
                 safety=safety_signal,
-                bias=self._bias_placeholder("Deferred to triage."),
+                bias=bias_signal,
                 cost=cost_signal,
             ),
             profile.weights,
         )
+
 
     def _triage(
         self,

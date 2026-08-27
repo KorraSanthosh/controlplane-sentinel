@@ -27,6 +27,7 @@ from app.services.grounding.service import GroundingService
 from app.services.llm.base import LLMProvider
 from app.services.llm.factory import build_llm_provider
 from app.services.orchestrator import Orchestrator
+from app.services.bias.service import BiasService
 from app.services.pii.service import PIIService
 from app.services.policy.decision import DecisionEngine
 from app.services.policy.loader import PolicyRegistry, load_policy_registry
@@ -49,6 +50,7 @@ class Container:
     audit_repo: AuditRepository
     pii: PIIService
     safety: SafetyService
+    bias: BiasService
     cost: CostService
     grounding: GroundingService
     scorer: RiskScorer
@@ -89,6 +91,7 @@ async def build_container(settings: Settings | None = None) -> Container:
     # The judge shares the primary provider. Deliberate for the prototype — a real deployment
     # would likely point the judge at a cheaper model, which is a constructor argument away.
     safety = SafetyService(safety_rules, llm=llm)
+    bias = BiasService()
     cost = CostService(settings)
     grounding = GroundingService(graph)
     scorer = RiskScorer()
@@ -101,6 +104,7 @@ async def build_container(settings: Settings | None = None) -> Container:
         grounding=grounding,
         pii=pii,
         safety=safety,
+        bias=bias,
         cost=cost,
         scorer=scorer,
         decision_engine=decision_engine,
@@ -126,6 +130,7 @@ async def build_container(settings: Settings | None = None) -> Container:
         audit_repo=audit_repo,
         pii=pii,
         safety=safety,
+        bias=bias,
         cost=cost,
         grounding=grounding,
         scorer=scorer,
@@ -133,6 +138,7 @@ async def build_container(settings: Settings | None = None) -> Container:
         audit=audit,
         orchestrator=orchestrator,
     )
+
 
 
 __all__ = ["SAFETY_RULES_FILE", "Container", "build_container"]

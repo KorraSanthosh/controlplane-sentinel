@@ -20,8 +20,10 @@ DEFAULT_WEIGHTS: dict[str, float] = {
     "grounding": 0.40,
     "safety": 0.30,
     "pii": 0.20,
+    "bias": 0.00,
     "cost": 0.10,
 }
+
 
 
 class RiskScorer:

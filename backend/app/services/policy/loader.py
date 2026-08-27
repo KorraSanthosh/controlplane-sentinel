@@ -36,7 +36,7 @@ STRATEGY_MOST_RESTRICTIVE = "most_restrictive"
 STRATEGY_FIRST_MATCH = "first_match"
 STRATEGIES = frozenset({STRATEGY_MOST_RESTRICTIVE, STRATEGY_FIRST_MATCH})
 
-CHECK_NAMES = ("grounding", "pii", "safety", "cost")
+CHECK_NAMES = ("grounding", "pii", "safety", "bias", "cost")
 
 
 @dataclass(frozen=True)

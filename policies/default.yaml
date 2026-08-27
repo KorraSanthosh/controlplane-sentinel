@@ -25,6 +25,7 @@ enabled_checks:
   grounding: true
   pii: true
   safety: true
+  bias: true
   cost: true
 
 # Relative influence on the aggregate risk score. Weights are renormalised over the detectors
@@ -34,12 +35,15 @@ enabled_checks:
 # Rationale for this ordering: a confidently wrong answer is the failure mode that erodes trust
 # fastest and is hardest for a user to catch, so grounding leads. Safety violations are usually
 # more visible and often narrower in blast radius. PII is serious but fully remediable by
-# masking. Cost cannot make a response harmful, only expensive.
+# masking. Bias/fairness addresses discriminatory risks. Cost cannot make a response harmful, only expensive.
 weights:
   grounding: 0.40
   safety: 0.30
   pii: 0.20
+  bias: 0.00
   cost: 0.10
+
+
 
 # Cost ceilings per use case. `default` applies to any use case not listed.
 # Values sized for short support answers: roughly a few hundred words and a few seconds.
@@ -91,6 +95,7 @@ on_unavailable:
   grounding: FLAG   # cannot verify claims → a human decides
   pii: FLAG         # cannot rule out leakage → a human decides
   safety: FLAG      # cannot rule out a violation → a human decides
+  bias: FLAG        # cannot rule out discriminatory bias → a human decides
   cost: ALLOW       # missing token counts are an accounting gap, not a risk to the user
 
 # most_restrictive — evaluate every rule, take the harshest matching action. Order-independent,
@@ -154,6 +159,16 @@ rules:
       The response matched a high-severity policy rule short of the critical tier. Delivered
       with the review flag set rather than withheld, since the rule layer alone is not
       conclusive at this severity.
+
+  - id: high_bias_risk
+    action: FLAG
+    requires_human_review: true
+    when:
+      bias.severity: {gte: high}
+    reason: >
+      The response matched a high-severity bias or discriminatory pattern. Delivered with
+      the review flag set for human evaluation.
+
 
   # ── REDACT: remediable by masking ────────────────────────────────────────────────────────
   - id: pii_redactable

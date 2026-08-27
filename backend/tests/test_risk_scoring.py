@@ -22,7 +22,7 @@ from app.schemas.signals import (
 )
 from app.services.risk.scoring import DEFAULT_WEIGHTS, RiskScorer
 
-WEIGHTS = {"grounding": 0.40, "safety": 0.30, "pii": 0.20, "cost": 0.10}
+WEIGHTS = {"grounding": 0.40, "safety": 0.30, "pii": 0.20, "bias": 0.00, "cost": 0.10}
 
 
 def signals(

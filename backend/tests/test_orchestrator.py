@@ -177,6 +177,7 @@ def pipeline_for(container: Container, **overrides) -> Orchestrator:
         "grounding": container.grounding,
         "pii": container.pii,
         "safety": container.safety,
+        "bias": container.bias,
         "cost": container.cost,
         "scorer": container.scorer,
         "decision_engine": container.decision_engine,
@@ -185,6 +186,7 @@ def pipeline_for(container: Container, **overrides) -> Orchestrator:
         "system_prompt": None,
     }
     return Orchestrator(**{**parts, **overrides})
+
 
 
 def only(profile: PolicyProfile, **overrides) -> PolicyRegistry:
@@ -540,7 +542,7 @@ async def test_a_disabled_check_is_skipped_not_unavailable(
     container: Container, default: PolicyProfile
 ) -> None:
     """SKIPPED and UNAVAILABLE must not collapse: one is a choice, the other is a failure."""
-    off = only(default, enabled_checks={n: False for n in ("grounding", "pii", "safety", "cost")})
+    off = only(default, enabled_checks={n: False for n in ("grounding", "pii", "safety", "bias", "cost")})
     orch = pipeline_for(container, llm=_ScriptedProvider(PII_ONLY), policies=off)
     response, _ = await orch.process(chat_request("what is my email on file?"))
 
@@ -686,3 +688,35 @@ async def test_a_cost_overrun_is_recorded_without_changing_the_decision(
     assert "cost_anomaly" in [r.rule_id for r in response.fired_rules]
     assert response.decision is Decision.ALLOW
     assert response.answer == GROUNDED
+
+
+# ---------------------------------------------------------------------------
+# Bias Signal Integration
+# ---------------------------------------------------------------------------
+async def test_bias_signal_triggers_flag_decision(container: Container) -> None:
+    biased_text = "Please note that female applicants require spouse approval for verification."
+    orch = pipeline_for(container, llm=_ScriptedProvider(biased_text))
+    response, record = await orch.process(chat_request("Can I apply for an account?"))
+
+    assert response.decision is Decision.FLAG
+    assert response.requires_human_review
+    assert response.risk.signals.bias.status is SignalStatus.FAIL
+    assert response.risk.signals.bias.severity is Severity.HIGH
+    assert "gender" in response.risk.signals.bias.groups_implicated
+    assert "high_bias_risk" in [r.rule_id for r in response.fired_rules]
+    assert record.decision is Decision.FLAG
+
+
+async def test_bias_check_failure_reports_unavailable(container: Container) -> None:
+    class _FailingBiasService:
+        def check(self, text, enabled_categories=None):
+            raise RuntimeError("bias engine failure")
+
+    orch = pipeline_for(container, llm=_ScriptedProvider(GROUNDED), bias=_FailingBiasService())
+    response, record = await orch.process(chat_request("hello"))
+
+    assert response.risk.signals.bias.status is SignalStatus.UNAVAILABLE
+    assert response.risk.signals.bias.severity is Severity.MEDIUM
+    assert "bias" in response.risk.unavailable_checks
+    assert response.decision is Decision.FLAG
+
