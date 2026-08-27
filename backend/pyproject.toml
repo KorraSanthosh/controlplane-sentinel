@@ -1,0 +1,9 @@
+[tool.pytest.ini_options]
+# `app` is importable because rootdir is backend/ and pythonpath adds it explicitly — no
+# editable install or PYTHONPATH juggling needed to run `pytest` from either directory.
+pythonpath = ["."]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-q --strict-markers"
+filterwarnings = ["error::DeprecationWarning:app.*"]

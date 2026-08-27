@@ -1,0 +1,182 @@
+# ControlPlane.ai — DEFAULT policy profile
+#
+# ── Read this before quoting any number below ───────────────────────────────────────────────
+# Every weight, threshold and budget in this file is PROTOTYPE POLICY CONFIGURATION chosen to
+# make the six demo scenarios behave sensibly. None of it is an industry standard or a
+# benchmark, and nothing here was calibrated against a labelled dataset. In a real deployment
+# these are exactly the values a governance team would own and tune against their own
+# incident data. They live in YAML rather than in code for that reason.
+# ────────────────────────────────────────────────────────────────────────────────────────────
+#
+# Posture: balanced. Refuse to deliver what we can refute; escalate what we cannot verify;
+# mask personal data and deliver anyway; warn about cost without punishing correct answers.
+
+id: default
+version: "1.0.0"
+title: Balanced default
+description: >
+  The everyday posture. Blocks provable harm, escalates genuine uncertainty to a human,
+  redacts rather than withholds when the only problem is personal data, and treats cost
+  overruns as operational signals rather than governance failures.
+
+# Which detectors run at all. Disabling one makes it report SKIPPED, which is excluded from
+# the weighted score — it does NOT contribute a clean pass.
+enabled_checks:
+  grounding: true
+  pii: true
+  safety: true
+  cost: true
+
+# Relative influence on the aggregate risk score. Weights are renormalised over the detectors
+# that actually produced a usable score, so an unavailable detector does not cap the maximum
+# achievable score (see services/risk/scoring.py).
+#
+# Rationale for this ordering: a confidently wrong answer is the failure mode that erodes trust
+# fastest and is hardest for a user to catch, so grounding leads. Safety violations are usually
+# more visible and often narrower in blast radius. PII is serious but fully remediable by
+# masking. Cost cannot make a response harmful, only expensive.
+weights:
+  grounding: 0.40
+  safety: 0.30
+  pii: 0.20
+  cost: 0.10
+
+# Cost ceilings per use case. `default` applies to any use case not listed.
+# Values sized for short support answers: roughly a few hundred words and a few seconds.
+budgets:
+  default:
+    max_total_tokens: 1200
+    max_latency_ms: 3000
+  support_assistant:
+    max_total_tokens: 1200
+    max_latency_ms: 3000
+
+# Safety categories in force, by `category` in policies/safety_rules.yaml.
+# Omit this key entirely to enable every category defined there.
+safety_categories:
+  - unauthorised_commitment
+  - internal_financials
+  - credential_disclosure
+  - out_of_scope_certainty
+  - competitor_disparagement
+  - abusive_language
+
+# ── Latency protection (the brief asks how the checker avoids becoming the bottleneck) ──────
+# The fast path always runs and is cheap: regex PII, rule-based safety, cost arithmetic, and a
+# regex claim pre-scan over a cached entity alias table. No I/O.
+#
+# Two operations are expensive: the graph fact query and the LLM judge. Both are gated here.
+triage:
+  deep_grounding_enabled: true
+  # Skip the graph round trip entirely when the pre-scan extracted no verifiable claim.
+  # "Sorry to hear that, let me check your account" asserts nothing, so it pays nothing.
+  deep_grounding_on_claims: true
+
+  judge_enabled: true
+  # The judge is the single most expensive check — a second model call. It runs only when a
+  # cheap signal is already concerned. 0.35 sits above a lone low-severity rule hit and below
+  # anything the deterministic rules already resolve on their own.
+  judge_on_fast_risk_at_or_above: 0.35
+  # ...or when grounding found trouble, since a contradiction may be a phrasing artefact that
+  # a language model can adjudicate better than a regex.
+  judge_on_grounding_status: [contradicted, unsupported]
+  # ...or when the rule layer is suspicious but not certain.
+  judge_on_safety_status: [warn, fail]
+
+# ── Fail-safe: what an UNAVAILABLE detector means (FR-11) ───────────────────────────────────
+# A detector that could not run has produced no evidence, and no evidence is not a pass. These
+# actions apply before any content rule is evaluated, because a crashed detector cannot trip a
+# content rule and would otherwise be indistinguishable from a clean response.
+on_unavailable:
+  grounding: FLAG   # cannot verify claims → a human decides
+  pii: FLAG         # cannot rule out leakage → a human decides
+  safety: FLAG      # cannot rule out a violation → a human decides
+  cost: ALLOW       # missing token counts are an accounting gap, not a risk to the user
+
+# most_restrictive — evaluate every rule, take the harshest matching action. Order-independent,
+#                    so adding a rule cannot silently mask an existing one.
+# first_match      — stop at the first matching rule in file order.
+strategy: most_restrictive
+
+default_action: ALLOW
+default_reason: >
+  No policy rule matched. Claims were either supported by trusted evidence or made no
+  verifiable assertion, no personal data or policy violation was detected, and the response
+  stayed within the cost budget.
+
+rules:
+  # ── BLOCK: harm we can demonstrate ───────────────────────────────────────────────────────
+  - id: critical_safety
+    action: BLOCK
+    when:
+      safety.severity: {gte: critical}
+    reason: >
+      The response violates a critical safety policy — an unauthorised commitment,
+      confidential internal information, or a disclosed credential. The response is withheld
+      and a safe fallback is delivered instead.
+
+  - id: contradicted_fact
+    action: BLOCK
+    when:
+      grounding.status: contradicted
+      grounding.score: {gte: 0.7}
+    reason: >
+      At least one claim in the response is directly contradicted by a trusted fact in the
+      knowledge graph. This is refutation, not absence of evidence: the graph holds a
+      conflicting value for the same subject and predicate, so the response is withheld.
+
+  - id: pii_not_redactable
+    action: BLOCK
+    when:
+      pii.detected: true
+      pii.redactable: false
+    reason: >
+      Personal data was detected but could not be masked reliably, so the response cannot be
+      made safe to deliver. Withheld rather than delivered partially masked.
+
+  # ── FLAG: risk we cannot resolve on our own ──────────────────────────────────────────────
+  - id: insufficient_evidence
+    action: FLAG
+    requires_human_review: true
+    when:
+      grounding.status: unsupported
+    reason: >
+      The response asserts facts the trusted knowledge graph holds no record of. Absence of
+      evidence is not evidence of falsehood, so the claim is neither certified nor refuted;
+      it is escalated for human review.
+
+  - id: high_safety_risk
+    action: FLAG
+    requires_human_review: true
+    when:
+      safety.severity: {gte: high}
+    reason: >
+      The response matched a high-severity policy rule short of the critical tier. Delivered
+      with the review flag set rather than withheld, since the rule layer alone is not
+      conclusive at this severity.
+
+  # ── REDACT: remediable by masking ────────────────────────────────────────────────────────
+  - id: pii_redactable
+    action: REDACT
+    apply_redaction: true
+    when:
+      pii.detected: true
+      pii.redactable: true
+    reason: >
+      The response contains personal data. Every detected span is maskable, so the answer is
+      delivered with those spans replaced rather than withheld — the customer still gets their
+      answer.
+
+  # ── ALLOW + record: operational, not a governance failure ────────────────────────────────
+  # This rule cannot change the decision under most_restrictive. It exists so the overrun is
+  # named in the audit trail and on the dashboard with a rule id, instead of being visible
+  # only as a number in the cost signal.
+  - id: cost_anomaly
+    action: ALLOW
+    when:
+      cost.status: warn
+    reason: >
+      The response exceeded its token or latency budget. Content risk is unchanged, so the
+      response is delivered; the overrun is recorded for cost monitoring. Blocking a correct
+      answer for verbosity would generate exactly the alert fatigue this system exists to
+      avoid.

@@ -1,0 +1,127 @@
+# ControlPlane.ai — LENIENT policy profile
+#
+# Same caveat as default.yaml: every number here is prototype policy configuration, not an
+# industry standard and not calibrated against labelled data.
+#
+# Posture: availability-first. Suitable for a low-stakes internal or exploratory surface where
+# an over-eager control layer would do more damage than the risks it catches. Critical safety
+# violations and personal data are still handled — those are non-negotiable. Everything else is
+# recorded and delivered.
+#
+# What this profile gives up, stated plainly: contradicted facts are delivered with a review
+# flag rather than withheld, and unsupported claims are not surfaced at all. On a
+# customer-facing surface that would be the wrong trade.
+#
+# Differences from default, at a glance:
+#   * contradicted facts FLAG instead of BLOCK
+#   * no rule for unsupported claims
+#   * an unavailable grounding or PII check ALLOWS instead of flagging
+#   * competitor-disparagement checking is off
+#   * roughly double the cost budget, and the LLM judge rarely runs
+
+id: lenient
+version: "1.0.0"
+title: Lenient / availability-first
+description: >
+  For low-stakes internal surfaces. Blocks only demonstrable safety violations, masks personal
+  data, and delivers everything else with signals recorded. Optimised against false positives
+  at the cost of recall.
+
+enabled_checks:
+  grounding: true
+  pii: true
+  safety: true
+  cost: true
+
+weights:
+  grounding: 0.30
+  safety: 0.35
+  pii: 0.25
+  cost: 0.10
+
+budgets:
+  default:
+    max_total_tokens: 2500
+    max_latency_ms: 6000
+  support_assistant:
+    max_total_tokens: 2500
+    max_latency_ms: 6000
+
+# Comparative-claim policing is the noisiest category and the least consequential internally,
+# so it is switched off here. Its rules are not deleted — just not in force for this profile.
+safety_categories:
+  - unauthorised_commitment
+  - internal_financials
+  - credential_disclosure
+  - out_of_scope_certainty
+  - abusive_language
+
+triage:
+  deep_grounding_enabled: true
+  deep_grounding_on_claims: true
+  judge_enabled: true
+  # High bar: the judge only runs when the cheap signals are seriously worried, keeping the
+  # median request on the fast path.
+  judge_on_fast_risk_at_or_above: 0.60
+  judge_on_grounding_status: [contradicted]
+  judge_on_safety_status: [fail]
+
+# A degraded verifier does not stop delivery on a low-stakes surface. Safety is the exception:
+# not being able to check for a policy violation is still not a pass.
+on_unavailable:
+  grounding: ALLOW
+  pii: ALLOW
+  safety: FLAG
+  cost: ALLOW
+
+strategy: most_restrictive
+
+default_action: ALLOW
+default_reason: >
+  No policy rule matched. The response was delivered unchanged.
+
+rules:
+  - id: critical_safety
+    action: BLOCK
+    when:
+      safety.severity: {gte: critical}
+    reason: >
+      The response violates a critical safety policy. Even on the lenient profile this is
+      withheld — an unauthorised commitment or a confidential disclosure is not a matter of
+      risk appetite.
+
+  - id: contradicted_fact
+    action: FLAG
+    requires_human_review: true
+    when:
+      grounding.status: contradicted
+      grounding.score: {gte: 0.85}
+    reason: >
+      A claim in the response conflicts with a trusted fact in the knowledge graph. On this
+      profile the response is still delivered, marked for review, on the assumption that an
+      internal reader can weigh the discrepancy themselves.
+
+  - id: pii_not_redactable
+    action: BLOCK
+    when:
+      pii.detected: true
+      pii.redactable: false
+    reason: >
+      Personal data was detected and could not be reliably masked. Withheld regardless of
+      profile.
+
+  - id: pii_redactable
+    action: REDACT
+    apply_redaction: true
+    when:
+      pii.detected: true
+      pii.redactable: true
+    reason: >
+      The response contains personal data. Detected spans are masked before delivery.
+
+  - id: cost_anomaly
+    action: ALLOW
+    when:
+      cost.status: warn
+    reason: >
+      The response exceeded its token or latency budget. Recorded for cost monitoring only.

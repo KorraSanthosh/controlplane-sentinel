@@ -1,0 +1,156 @@
+# ControlPlane.ai — STRICT policy profile
+#
+# Same caveat as default.yaml: every number here is prototype policy configuration, not an
+# industry standard and not calibrated against labelled data.
+#
+# Posture: verification-first. Suitable for a regulated or high-blast-radius use case where
+# delivering an unverified factual claim is worse than delivering nothing. The trade is
+# explicit and deliberately uncomfortable — this profile will withhold correct answers whose
+# correctness the graph simply cannot confirm, and its false-positive rate is the price of
+# that. Running a whole product on this profile would train users to ignore it; it exists for
+# the narrow surfaces that warrant it.
+#
+# Differences from default, at a glance:
+#   * unsupported claims BLOCK instead of FLAG
+#   * assertions outside graph coverage FLAG instead of passing silently
+#   * an unavailable grounding or safety check BLOCKS instead of flagging
+#   * the contradiction threshold drops from 0.7 to 0.5
+#   * high-severity safety BLOCKS instead of flagging
+#   * tighter budgets, and the LLM judge runs far more readily
+
+id: strict
+version: "1.0.0"
+title: Strict / verification-first
+description: >
+  For regulated or high-exposure use cases. Nothing factual is delivered unless trusted
+  evidence supports it, and an unavailable verifier withholds rather than escalates. Expect
+  more false positives; that is the intended trade.
+
+enabled_checks:
+  grounding: true
+  pii: true
+  safety: true
+  cost: true
+
+# Grounding and safety carry more weight here; cost is nearly irrelevant when the alternative
+# is an unverified claim reaching a customer.
+weights:
+  grounding: 0.45
+  safety: 0.35
+  pii: 0.15
+  cost: 0.05
+
+budgets:
+  default:
+    max_total_tokens: 900
+    max_latency_ms: 2500
+  support_assistant:
+    max_total_tokens: 900
+    max_latency_ms: 2500
+
+safety_categories:
+  - unauthorised_commitment
+  - internal_financials
+  - credential_disclosure
+  - out_of_scope_certainty
+  - competitor_disparagement
+  - abusive_language
+
+triage:
+  deep_grounding_enabled: true
+  deep_grounding_on_claims: true
+  judge_enabled: true
+  # Low bar: almost any fast-path concern buys a second opinion. This costs real latency and
+  # real tokens, which is acceptable only because this profile is scoped to surfaces where
+  # being wrong is expensive.
+  judge_on_fast_risk_at_or_above: 0.20
+  judge_on_grounding_status: [contradicted, unsupported, unavailable]
+  judge_on_safety_status: [warn, fail]
+
+# The defining choice of this profile: if we could not verify, we do not deliver.
+on_unavailable:
+  grounding: BLOCK
+  pii: BLOCK
+  safety: BLOCK
+  cost: FLAG
+
+strategy: most_restrictive
+
+default_action: ALLOW
+default_reason: >
+  No policy rule matched. Every extracted claim was supported by trusted evidence, no personal
+  data or policy violation was detected, and the response stayed within budget.
+
+rules:
+  - id: critical_safety
+    action: BLOCK
+    when:
+      safety.severity: {gte: critical}
+    reason: >
+      The response violates a critical safety policy. Withheld, with a safe fallback delivered
+      instead.
+
+  - id: high_safety_risk
+    action: BLOCK
+    when:
+      safety.severity: {gte: high}
+    reason: >
+      The response matched a high-severity policy rule. Under the strict profile, high severity
+      is sufficient to withhold rather than merely flag.
+
+  - id: contradicted_fact
+    action: BLOCK
+    when:
+      grounding.status: contradicted
+      grounding.score: {gte: 0.5}
+    reason: >
+      A claim in the response conflicts with a trusted fact in the knowledge graph. Withheld.
+
+  - id: unsupported_claim
+    action: BLOCK
+    requires_human_review: true
+    when:
+      grounding.status: unsupported
+    reason: >
+      The response asserts facts the trusted knowledge graph cannot confirm. Under the strict
+      profile an unverified factual claim is not delivered, even though it may well be true —
+      the graph's silence is treated as insufficient warrant rather than as permission.
+
+  - id: outside_graph_coverage
+    action: FLAG
+    requires_human_review: true
+    when:
+      grounding.claims_unverifiable: {gte: 1}
+    reason: >
+      The response made at least one assertion about a subject the graph knows, using a
+      property the graph does not record. This is the system's principal blind spot: the claim
+      was neither confirmed nor refuted because coverage stops there. Escalated so the gap is
+      visible rather than silent.
+
+  - id: pii_not_redactable
+    action: BLOCK
+    when:
+      pii.detected: true
+      pii.redactable: false
+    reason: >
+      Personal data was detected and could not be reliably masked. Withheld.
+
+  - id: pii_redactable
+    action: REDACT
+    apply_redaction: true
+    requires_human_review: true
+    when:
+      pii.detected: true
+      pii.redactable: true
+    reason: >
+      The response contains personal data. Detected spans are masked before delivery, and the
+      exchange is additionally queued for review because under this profile any PII exposure is
+      treated as an incident worth a human look.
+
+  - id: cost_anomaly
+    action: ALLOW
+    when:
+      cost.status: warn
+    reason: >
+      The response exceeded its token or latency budget. Recorded for cost monitoring; content
+      risk is assessed independently.

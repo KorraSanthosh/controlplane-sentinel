@@ -1,0 +1,28 @@
+# ControlPlane.ai — backend dependencies
+# Python 3.12+
+
+# --- API layer ---
+fastapi>=0.115
+uvicorn[standard]>=0.32
+
+# --- Config & validation ---
+pydantic>=2.9
+pydantic-settings>=2.6
+PyYAML>=6.0
+
+# --- Persistence ---
+# pymongo >=4.13 ships the native async API (AsyncMongoClient); Motor is deprecated.
+pymongo>=4.13
+
+# --- Graph ---
+neo4j>=5.25
+
+# --- LLM provider ---
+anthropic>=0.40
+
+# --- HTTP client (used by scripts/run_demo.py and tests) ---
+httpx>=0.27
+
+# --- Tests ---
+pytest>=8.3
+pytest-asyncio>=0.24

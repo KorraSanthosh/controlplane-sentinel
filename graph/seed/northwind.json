@@ -1,0 +1,204 @@
+{
+  "version": 1,
+  "domain": "northwind_telecom",
+  "description": "Trusted grounding facts for the fictional Northwind Telecom support assistant. Small and deterministic on purpose (SYSTEM_REQUIREMENTS section 7). Loaded identically by the in-memory graph and by Neo4j.",
+  "documents": [
+    {
+      "id": "DOC-PLANS-2026-01",
+      "title": "Northwind Consumer Plan Schedule, January 2026",
+      "reference": "internal://kb/plans/2026-01"
+    },
+    {
+      "id": "DOC-REFUND-2025-11",
+      "title": "Northwind Refund and Cancellation Policy, November 2025",
+      "reference": "internal://kb/policy/refunds"
+    },
+    {
+      "id": "DOC-ADDONS-2026-01",
+      "title": "Northwind Add-on Catalogue, January 2026",
+      "reference": "internal://kb/addons/2026-01"
+    },
+    {
+      "id": "DOC-UPGRADE-2025-09",
+      "title": "Northwind Device Upgrade Eligibility Rules",
+      "reference": "internal://kb/policy/upgrades"
+    }
+  ],
+  "entities": [
+    {
+      "id": "plan_basic",
+      "name": "Basic",
+      "type": "Plan",
+      "aliases": ["basic", "basic plan", "northwind basic", "the basic plan"]
+    },
+    {
+      "id": "plan_plus",
+      "name": "Plus",
+      "type": "Plan",
+      "aliases": ["plus", "plus plan", "northwind plus", "the plus plan"]
+    },
+    {
+      "id": "plan_premium",
+      "name": "Premium",
+      "type": "Plan",
+      "aliases": ["premium", "premium plan", "northwind premium", "the premium plan"]
+    },
+    {
+      "id": "addon_roaming",
+      "name": "International Roaming Pack",
+      "type": "AddOn",
+      "aliases": ["international roaming pack", "roaming pack", "roaming add-on", "roaming addon"]
+    },
+    {
+      "id": "policy_upgrade",
+      "name": "Device Upgrade Eligibility",
+      "type": "Policy",
+      "aliases": ["device upgrade", "upgrade eligibility", "device upgrade eligibility"]
+    }
+  ],
+  "facts": [
+    {
+      "subject": "plan_basic",
+      "predicate": "MONTHLY_PRICE_USD",
+      "object": "25",
+      "value_type": "number",
+      "source_document": "DOC-PLANS-2026-01"
+    },
+    {
+      "subject": "plan_basic",
+      "predicate": "INCLUDED_DATA_GB",
+      "object": "10",
+      "value_type": "number",
+      "source_document": "DOC-PLANS-2026-01"
+    },
+    {
+      "subject": "plan_basic",
+      "predicate": "REFUND_WINDOW_DAYS",
+      "object": "14",
+      "value_type": "number",
+      "source_document": "DOC-REFUND-2025-11"
+    },
+    {
+      "subject": "plan_basic",
+      "predicate": "INCLUDES_INTERNATIONAL_ROAMING",
+      "object": "false",
+      "value_type": "boolean",
+      "source_document": "DOC-PLANS-2026-01"
+    },
+    {
+      "subject": "plan_plus",
+      "predicate": "MONTHLY_PRICE_USD",
+      "object": "45",
+      "value_type": "number",
+      "source_document": "DOC-PLANS-2026-01"
+    },
+    {
+      "subject": "plan_plus",
+      "predicate": "INCLUDED_DATA_GB",
+      "object": "40",
+      "value_type": "number",
+      "source_document": "DOC-PLANS-2026-01"
+    },
+    {
+      "subject": "plan_plus",
+      "predicate": "REFUND_WINDOW_DAYS",
+      "object": "14",
+      "value_type": "number",
+      "source_document": "DOC-REFUND-2025-11"
+    },
+    {
+      "subject": "plan_plus",
+      "predicate": "INCLUDES_INTERNATIONAL_ROAMING",
+      "object": "false",
+      "value_type": "boolean",
+      "source_document": "DOC-PLANS-2026-01"
+    },
+    {
+      "subject": "plan_premium",
+      "predicate": "MONTHLY_PRICE_USD",
+      "object": "70",
+      "value_type": "number",
+      "source_document": "DOC-PLANS-2026-01"
+    },
+    {
+      "subject": "plan_premium",
+      "predicate": "INCLUDED_DATA_GB",
+      "object": "100",
+      "value_type": "number",
+      "source_document": "DOC-PLANS-2026-01"
+    },
+    {
+      "subject": "plan_premium",
+      "predicate": "REFUND_WINDOW_DAYS",
+      "object": "30",
+      "value_type": "number",
+      "source_document": "DOC-REFUND-2025-11"
+    },
+    {
+      "subject": "plan_premium",
+      "predicate": "INCLUDES_INTERNATIONAL_ROAMING",
+      "object": "false",
+      "value_type": "boolean",
+      "source_document": "DOC-PLANS-2026-01",
+      "note": "Premium does NOT bundle international roaming. It requires the paid add-on. This single fact is what lets the grounding checker refute scenario B rather than merely fail to confirm it."
+    },
+    {
+      "subject": "addon_roaming",
+      "predicate": "MONTHLY_PRICE_USD",
+      "object": "15",
+      "value_type": "number",
+      "source_document": "DOC-ADDONS-2026-01"
+    },
+    {
+      "subject": "addon_roaming",
+      "predicate": "AVAILABLE_ON_ALL_PLANS",
+      "object": "true",
+      "value_type": "boolean",
+      "source_document": "DOC-ADDONS-2026-01"
+    },
+    {
+      "subject": "policy_upgrade",
+      "predicate": "UPGRADE_ELIGIBILITY_MONTHS",
+      "object": "18",
+      "value_type": "number",
+      "source_document": "DOC-UPGRADE-2025-09"
+    }
+  ],
+  "sensitive_categories": [
+    {
+      "id": "cat_customer_pii",
+      "name": "Customer personal data",
+      "description": "Names, emails, phone numbers, addresses, dates of birth, account and card numbers."
+    },
+    {
+      "id": "cat_internal_financials",
+      "name": "Internal financial data",
+      "description": "Margins, unit costs, supplier pricing, contract economics."
+    },
+    {
+      "id": "cat_unauthorised_commitment",
+      "name": "Unauthorised commitments",
+      "description": "Refunds, waivers, credits or price guarantees issued without approval."
+    }
+  ],
+  "policy_nodes": [
+    {
+      "id": "POL-PRIVACY-01",
+      "name": "Customer data minimisation",
+      "forbids": ["cat_customer_pii"],
+      "source_document": "DOC-REFUND-2025-11"
+    },
+    {
+      "id": "POL-CONFIDENTIAL-01",
+      "name": "Internal financial confidentiality",
+      "forbids": ["cat_internal_financials"],
+      "source_document": "DOC-REFUND-2025-11"
+    },
+    {
+      "id": "POL-COMMITMENT-01",
+      "name": "Financial commitment authority",
+      "forbids": ["cat_unauthorised_commitment"],
+      "source_document": "DOC-REFUND-2025-11"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -m pip --version)",
+      "Bash(docker --version)",
+      "Bash(docker info *)",
+      "Bash(npm --version)",
+      "Bash(env)"
+    ]
+  }
+}

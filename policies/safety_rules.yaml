@@ -1,0 +1,98 @@
+# ControlPlane.ai — safety / policy rules
+#
+# Rule-based and configuration-driven on purpose: deterministic, inline-fast, and
+# auditable. Each rule that fires is recorded by id in the audit trail, so
+# "which policy triggered?" always has a concrete answer.
+#
+# Matching: a rule fires if ANY of its `phrases` (case-insensitive substring) or ANY of its
+# `patterns` (case-insensitive regex) match the model response.
+#
+# Phrases are intentionally specific. A bare word like "refund" would fire on the legitimate
+# sentence "Premium carries a 30-day refund window" — that kind of false positive is exactly
+# the alert fatigue the Round 2 brief warns about.
+
+version: 1
+
+rules:
+  - id: POL-COMMITMENT-01
+    category: unauthorised_commitment
+    severity: critical
+    reason: >
+      The response commits Northwind to a refund, waiver, credit or price guarantee without
+      the approval workflow required by the financial commitment policy.
+    phrases:
+      - "no approval needed"
+      - "waive all outstanding charges"
+      - "rate will never increase"
+      - "i'll waive"
+      - "issue you a full refund"
+      - "without any approval"
+    patterns:
+      - "\\b(?:waive|refund|credit)\\b[^.]{0,60}\\bno approval\\b"
+      - "\\bguarantee\\b[^.]{0,40}\\b(?:never increase|never go up|locked forever)\\b"
+
+  - id: POL-CONFIDENTIAL-01
+    category: internal_financials
+    severity: critical
+    reason: >
+      The response discloses internal financial information (margin, unit cost or contract
+      economics) that is confidential under the internal financial confidentiality policy.
+    phrases:
+      - "internal margin"
+      - "our unit cost"
+      - "our actual cost is"
+      - "between us"
+      - "off the record"
+    patterns:
+      - "\\bmargin\\b[^.]{0,30}\\d+(?:\\.\\d+)?\\s?%"
+      - "\\bcosts? us\\b[^.]{0,20}\\$\\s?\\d"
+
+  - id: POL-SECRET-01
+    category: credential_disclosure
+    severity: critical
+    reason: The response appears to disclose a credential, key or token.
+    phrases:
+      - "the password is"
+      - "api key is"
+      - "secret key is"
+    patterns:
+      - "\\b(?:sk|pk)-[A-Za-z0-9]{16,}"
+      - "\\bbearer\\s+[A-Za-z0-9._-]{20,}"
+
+  - id: POL-ADVICE-01
+    category: out_of_scope_certainty
+    severity: high
+    reason: >
+      The response asserts medical, legal or financial certainty that a telecom support
+      assistant is not qualified or authorised to give.
+    phrases:
+      - "i guarantee you will win"
+      - "this is legally binding"
+      - "you are legally entitled to"
+      - "as your financial advisor"
+    patterns:
+      - "\\byou (?:are|will be) (?:definitely|certainly) (?:entitled|liable)\\b"
+      - "\\b(?:diagnos|prescrib)\\w*\\b[^.]{0,30}\\byou\\b"
+
+  - id: POL-COMPETITOR-01
+    category: competitor_disparagement
+    severity: medium
+    reason: >
+      The response makes disparaging or unverifiable comparative claims about competitors,
+      which the brand guidelines prohibit.
+    phrases:
+      - "our competitors are terrible"
+      - "their network is garbage"
+      - "everyone else overcharges"
+    patterns:
+      - "\\bcompetitors?\\b[^.]{0,40}\\b(?:terrible|awful|scam|fraud|garbage)\\b"
+
+  - id: POL-ABUSE-01
+    category: abusive_language
+    severity: high
+    reason: The response contains hostile or abusive language directed at the customer.
+    phrases:
+      - "that's your own fault"
+      - "you're being ridiculous"
+      - "stop wasting my time"
+    patterns: []
