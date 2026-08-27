@@ -145,3 +145,4 @@ Thumbs.db
 # Claude / AI tooling
 # -------------------------
 .claude/local/
+.claude/settings.local.json
