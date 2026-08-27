@@ -1,0 +1,147 @@
+# ============================================================
+# ControlPlane Sentinel - Git Ignore
+# ============================================================
+
+# -------------------------
+# Environment / Secrets
+# -------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.secret
+secrets/
+credentials/
+*.credentials
+
+# -------------------------
+# Python
+# -------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# Type checking / linting
+.mypy_cache/
+.pyright/
+.ruff_cache/
+
+# -------------------------
+# FastAPI / Uvicorn
+# -------------------------
+*.log
+logs/
+
+# -------------------------
+# Jupyter
+# -------------------------
+.ipynb_checkpoints/
+
+# -------------------------
+# Node / Next.js
+# -------------------------
+node_modules/
+.next/
+out/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# -------------------------
+# Frontend environment files
+# -------------------------
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# -------------------------
+# IDE / Editors
+# -------------------------
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+.idea/
+*.iml
+
+# -------------------------
+# macOS
+# -------------------------
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# -------------------------
+# Temporary files
+# -------------------------
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# -------------------------
+# Database / local data
+# -------------------------
+*.db
+*.sqlite
+*.sqlite3
+
+# Local MongoDB data
+data/db/
+mongodb_data/
+
+# -------------------------
+# Neo4j local data
+# -------------------------
+neo4j/data/
+neo4j/logs/
+neo4j/import/
+neo4j/plugins/
+
+# -------------------------
+# Docker
+# -------------------------
+.docker/
+
+# -------------------------
+# Generated / runtime files
+# -------------------------
+tmp/
+temp/
+.cache/
+.cache-loader/
+
+# -------------------------
+# OS / system files
+# -------------------------
+Thumbs.db
+
+# -------------------------
+# Claude / AI tooling
+# -------------------------
+.claude/local/
