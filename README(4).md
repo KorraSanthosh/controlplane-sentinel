@@ -1,15 +1,21 @@
-# ControlPlane Sentinel
+ # ControlPlane Sentinel
 
 ## AI Governance & Risk Control Plane
 
 ControlPlane Sentinel is an AI governance control plane that evaluates model-generated responses before delivery. It combines five governance checks—Grounding, Safety, Privacy/PII, Bias/Fairness, and Cost/Overhead—into an adaptive risk assessment and policy decision.
 
+## 🚀 Deployed Application
+
+**Live Demo:** [https://controlplane-sentinel.onrender.com/](https://controlplane-sentinel.onrender.com/?utm_source=chatgpt.com)
+
+The deployed MVP is available online and demonstrates the governance pipeline, risk assessment, policy decisions, audit trail, and dashboard.
+
 ### Decision Actions
 
-- **ALLOW** — deliver the response
-- **REDACT** — mask detected sensitive information
-- **FLAG** — escalate for human review
-- **BLOCK** — withhold the response and use the configured fallback
+* **ALLOW** — deliver the response
+* **REDACT** — mask detected sensitive information
+* **FLAG** — escalate for human review
+* **BLOCK** — withhold the response and use the configured fallback
 
 ## Architecture
 
@@ -49,52 +55,57 @@ Dashboard
 ## Five Governance Checks
 
 ### 1. Grounding / Performance
+
 Uses claim extraction and knowledge-graph verification.
 
-- `CONTRADICTED` → **BLOCK**
-- `UNSUPPORTED` → **FLAG** + human review
-- Default risk weight: **0.40**
+* `CONTRADICTED` → **BLOCK**
+* `UNSUPPORTED` → **FLAG** + human review
+* Default risk weight: **0.40**
 
 ### 2. Safety
+
 Uses deterministic rule checks on the fast path and an LLM judge on the deep path when required.
 
-- `CRITICAL` → **BLOCK**
-- `HIGH` → **FLAG** + human review
-- Default risk weight: **0.30**
+* `CRITICAL` → **BLOCK**
+* `HIGH` → **FLAG** + human review
+* Default risk weight: **0.30**
 
 ### 3. Privacy / PII
+
 Detects email, phone, account number, credit card, DOB, and postal address.
 
 Redactable PII is replaced with placeholders such as `[REDACTED: email]`.
 
-- Redactable PII → **REDACT**
-- Non-redactable PII → **BLOCK**
-- Default risk weight: **0.20**
+* Redactable PII → **REDACT**
+* Non-redactable PII → **BLOCK**
+* Default risk weight: **0.20**
 
 ### 4. Bias / Fairness
+
 Deterministic rules cover categories such as gender, age, ethnicity, postcode proxy/redlining, and disability.
 
-- High/critical bias risk → **FLAG** + human review
-- Default risk weight: **0.00**, configurable through policy profiles
+* High/critical bias risk → **FLAG** + human review
+* Default risk weight: **0.00**, configurable through policy profiles
 
 ### 5. Cost / Overhead
+
 Evaluates token usage, latency, estimated USD cost, and configured budgets.
 
 A cost warning is recorded without blocking an otherwise correct response.
 
-- Default risk weight: **0.10**
+* Default risk weight: **0.10**
 
 ## Adaptive Risk Engine
 
 Default weights:
 
-| Signal | Weight |
-|---|---:|
-| Grounding | 0.40 |
-| Safety | 0.30 |
-| PII | 0.20 |
-| Bias | 0.00 |
-| Cost | 0.10 |
+| Signal    |   Weight |
+| --------- | -------: |
+| Grounding |     0.40 |
+| Safety    |     0.30 |
+| PII       |     0.20 |
+| Bias      |     0.00 |
+| Cost      |     0.10 |
 | **Total** | **1.00** |
 
 For usable detectors:
@@ -109,12 +120,12 @@ Unavailable or skipped detectors are excluded from the denominator. The final sc
 Severity mapping:
 
 | Severity | Score |
-|---|---:|
-| PASS | 0.0 |
-| LOW | 0.2 |
-| MEDIUM | 0.5 |
-| HIGH | 0.8 |
-| CRITICAL | 1.0 |
+| -------- | ----: |
+| PASS     |   0.0 |
+| LOW      |   0.2 |
+| MEDIUM   |   0.5 |
+| HIGH     |   0.8 |
+| CRITICAL |   1.0 |
 
 ## Fast Path and Deep Path
 
@@ -122,14 +133,14 @@ The orchestrator first performs inexpensive checks. More expensive grounding ver
 
 ## Demo Scenarios
 
-| Scenario | Finding | Decision |
-|---|---|---|
-| A — Grounded Safe | Grounded response | **ALLOW** |
-| B — Hallucination Contradicted | Knowledge-graph contradiction | **BLOCK** |
-| C — PII Leakage | Redactable PII | **REDACT** |
-| D — Unsafe Policy Violation | Critical safety violation | **BLOCK** |
-| E — Cost Anomaly | Token/latency warning | **ALLOW** |
-| F — Insufficient Evidence | Unsupported claim | **FLAG** + human review |
+| Scenario                       | Finding                       | Decision                |
+| ------------------------------ | ----------------------------- | ----------------------- |
+| A — Grounded Safe              | Grounded response             | **ALLOW**               |
+| B — Hallucination Contradicted | Knowledge-graph contradiction | **BLOCK**               |
+| C — PII Leakage                | Redactable PII                | **REDACT**              |
+| D — Unsafe Policy Violation    | Critical safety violation     | **BLOCK**               |
+| E — Cost Anomaly               | Token/latency warning         | **ALLOW**               |
+| F — Insufficient Evidence      | Unsupported claim             | **FLAG** + human review |
 
 ## Audit Trail
 
@@ -152,17 +163,17 @@ Production persistence uses MongoDB; an in-memory repository is available for fa
 
 The dashboard displays:
 
-- Five governance checks
-- Individual risk scores and statuses
-- Overall risk and decision
-- Human-review indicator
-- Grounding claims/evidence
-- PII findings
-- Safety violations
-- Bias findings
-- Deep-path information
-- Telemetry
-- Audit log explorer
+* Five governance checks
+* Individual risk scores and statuses
+* Overall risk and decision
+* Human-review indicator
+* Grounding claims/evidence
+* PII findings
+* Safety violations
+* Bias findings
+* Deep-path information
+* Telemetry
+* Audit log explorer
 
 ## Repository Structure
 
@@ -221,9 +232,9 @@ Automated generative claim repair is **not implemented**.
 
 Current safe behavior:
 
-- Contradicted claims → **BLOCK**
-- Unsupported claims → **FLAG** + human review
-- Privacy-sensitive spans → **REDACT** when safely redactable
+* Contradicted claims → **BLOCK**
+* Unsupported claims → **FLAG** + human review
+* Privacy-sensitive spans → **REDACT** when safely redactable
 
 `REDACT` therefore means privacy span masking, not generative factual-claim rewriting.
 
@@ -236,3 +247,4 @@ Potential production enhancements include live Redis caching, an active Neo4j de
 **MVP COMPLETE**
 
 The verified repository contains all five governance checks, adaptive risk scoring, policy decisions, scenarios A–F, audit and feedback APIs, dashboard integration, and **170 passing automated tests**.
+
